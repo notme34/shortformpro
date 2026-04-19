@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShortForm Pro - 9:16 Vertical Clip Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .font-display { font-family: 'Space Grotesk', sans-serif; }
+        .gradient-text {
+            background: linear-gradient(135deg, #ff006e 0%, #8338ec 50%, #3a86ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .neon-glow {
+            box-shadow: 0 0 30px rgba(255, 0, 110, 0.3), 0 0 60px rgba(131, 56, 236, 0.2);
+        }
+        .clip-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .clip-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(255, 0, 110, 0.2);
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #ff006e 0%, #8338ec 100%);
+            background-size: 200% 100%;
+            animation: gradient-shift 2s ease infinite;
+        }
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .safe-zone-overlay {
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(255, 0, 110, 0.1),
+                rgba(255, 0, 110, 0.1) 10px,
+                rgba(255, 0, 110, 0.2) 10px,
+                rgba(255, 0, 110, 0.2) 20px
+            );
+            border: 2px dashed #ff006e;
+        }
+        .safe-zone-clear {
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+        .crop-preview {
+            position: relative;
+            overflow: hidden;
+        }
+        .crop-preview::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 3px solid #ff006e;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .crop-area {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 56.25%;
+            height: 100%;
+            border: 2px solid #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+            z-index: 20;
+        }
+        .crop-label {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #00ff88;
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 30;
+        }
+        .viral-score-ring {
+            background: conic-gradient(from 0deg, #ff006e var(--score), rgba(255,255,255,0.1) var(--score));
+        }
+        .hidden-scene { opacity: 0; transform: translateY(20px); }
+        .visible-scene { opacity: 1; transform: translateY(0); transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        /* Safe Zone Visualization */
+        .safe-zone-viz {
+            position: relative;
+            width: 100%;
+            padding-bottom: 177.78%; /* 9:16 aspect ratio */
+            background: #1a1a2e;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .zone-danger-top {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 14%;
+            background: repeating-linear-gradient(45deg, rgba(239,68,68,0.3), rgba(239,68,68,0.3) 10px, rgba(239,68,68,0.5) 10px, rgba(239,68,68,0.5) 20px);
+            border-bottom: 2px dashed #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #ef4444;
+            font-weight: bold;
+        }
+        .zone-danger-bottom {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 35%;
+            background: repeating-linear-gradient(45deg, rgba(239,68,68,0.3), rgba(239,68,68,0.3) 10px, rgba(239,68,68,0.5) 10px, rgba(239,68,68,0.5) 20px);
+            border-top: 2px dashed #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #ef4444;
+            font-weight: bold;
+        }
+        .zone-danger-right {
+            position: absolute;
+            top: 14%;
+            right: 0;
+            width: 15%;
+            bottom: 35%;
+            background: repeating-linear-gradient(45deg, rgba(239,68,68,0.3), rgba(239,68,68,0.3) 10px, rgba(239,68,68,0.5) 10px, rgba(239,68,68,0.5) 20px);
+            border-left: 2px dashed #ef4444;
+        }
+        .zone-safe {
+            position: absolute;
+            top: 14%;
+            left: 0;
+            right: 15%;
+            bottom: 35%;
+            background: rgba(34,197,94,0.15);
+            border: 2px solid #22c55e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        .aspect-marker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 56.25%;
+            height: 60%;
+            border: 3px solid #3b82f6;
+            background: rgba(59,130,246,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #3b82f6;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-white min-h-screen overflow-x-hidden">
+    <!-- Background -->
+    <div class="fixed inset-0 z-0">
+        <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950"></div>
+        <div class="absolute top-20 left-10 w-72 h-72 bg-pink-600/20 rounded-full blur-3xl animate-pulse"></div>
+        <div class="absolute bottom-20 right-10 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
+    </div>
+
+    <div class="relative z-10 max-w-7xl mx-auto px-4 py-8">
+        
+        <!-- Header -->
+        <header class="text-center mb-12 space-y-4">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel mb-4 border border-pink-500/30">
+                <span class="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></span>
+                <span class="text-sm font-medium text-pink-300">9:16 Vertical Optimization Suite</span>
+            </div>
+            <h1 class="font-display text-5xl md:text-6xl font-bold tracking-tight">
+                <span class="gradient-text">ShortForm</span> Pro
+            </h1>
+            <p class="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
+                Extract 5 viral 1-minute clips from any YouTube video with precise 9:16 crop coordinates, 
+                safe zone guides, and professional editing exports. <span class="text-pink-400 font-semibold">No downloads required.</span>
+            </p>
+        </header>
+
+        <!-- Legal Notice -->
+        <div class="max-w-3xl mx-auto mb-8 glass-panel rounded-xl p-4 border border-yellow-500/30 bg-yellow-500/5">
+            <div class="flex items-start gap-3">
+                <svg class="w-6 h-6 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <div class="text-sm text-gray-300">
+                    <strong class="text-yellow-400">Legal Compliance:</strong> This tool provides editing coordinates and timestamps only. 
+                    You must use official YouTube tools (Premium offline, YouTube Studio) or licensed content to obtain video files legally. 
+                    Export formats include XML for Premiere Pro, EDL for DaVinci Resolve, and CSV for CapCut [^17^][^19^].
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Section -->
+        <section id="input-section" class="max-w-3xl mx-auto mb-16 visible-scene">
+            <div class="glass-panel rounded-3xl p-8 neon-glow">
+                <div class="space-y-6">
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-gray-400 mb-2">YouTube Video URL</label>
+                        <div class="flex gap-3">
+                            <input 
+                                type="text" 
+                                id="video-url" 
+                                placeholder="https://www.youtube.com/watch?v=..." 
+                                class="flex-1 bg-gray-900/50 border border-gray-700 rounded-xl px-6 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                            >
+                            <button 
+                                onclick="analyzeVideo()"
+                                id="analyze-btn"
+                                class="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white px-8 py-4 rounded-xl font-semibold transition-all transform hover:scale-105 flex items-center gap-2"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                Analyze
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Demos -->
+                    <div class="flex flex-wrap gap-3 justify-center">
+                        <button onclick="setDemoUrl('tech')" class="px-4 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-sm text-gray-300 transition-colors border border-gray-700 hover:border-pink-500/50">
+                            🚀 Tech Review (24min)
+                        </button>
+                        <button onclick="setDemoUrl('podcast')" class="px-4 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-sm text-gray-300 transition-colors border border-gray-700 hover:border-pink-500/50">
+                            🎙️ Podcast (3hr)
+                        </button>
+                        <button onclick="setDemoUrl('gaming')" class="px-4 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-sm text-gray-300 transition-colors border border-gray-700 hover:border-pink-500/50">
+                            🎮 Gaming (18min)
+                        </button>
+                        <button onclick="setDemoUrl('cooking')" class="px-4 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-sm text-gray-300 transition-colors border border-gray-700 hover:border-pink-500/50">
+                            👨‍🍳 Cooking (12min)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading State -->
+        <section id="loading-section" class="hidden-scene max-w-2xl mx-auto text-center py-20">
+            <div class="relative w-32 h-32 mx-auto mb-8">
+                <div class="absolute inset-0 rounded-full bg-pink-500/30 animate-ping"></div>
+                <div class="absolute inset-4 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center">
+                    <svg class="w-12 h-12 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            </div>
+            <h3 class="text-2xl font-bold mb-2" id="loading-text">Scanning Video Content...</h3>
+            <p class="text-gray-400 mb-8" id="loading-subtext">Detecting high-engagement segments for 9:16 optimization</p>
+            
+            <!-- Progress -->
+            <div class="space-y-3 max-w-md mx-auto">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400 text-sm">✓</div>
+                    <div class="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div class="h-full progress-bar w-full"></div>
+                    </div>
+                    <span class="text-xs text-gray-500">Metadata</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-gray-500 text-sm" id="step-2">2</div>
+                    <div class="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div class="h-full progress-bar w-0 transition-all duration-1000" id="bar-2"></div>
+                    </div>
+                    <span class="text-xs text-gray-500">Segment Analysis</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-gray-500 text-sm" id="step-3">3</div>
+                    <div class="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div class="h-full progress-bar w-0 transition-all duration-1000" id="bar-3"></div>
+                    </div>
+                    <span class="text-xs text-gray-500">9:16 Crop Optimization</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Dashboard -->
+        <section id="results-section" class="hidden-scene space-y-8">
+            
+            <!-- Video Header -->
+            <div class="glass-panel rounded-3xl p-8 border border-gray-800">
+                <div class="grid md:grid-cols-3 gap-8 items-center">
+                    <div class="md:col-span-1">
+                        <div class="aspect-video rounded-2xl overflow-hidden bg-gray-900 relative group">
+                            <img id="thumbnail-img" src="" alt="Video Thumbnail" class="w-full h-full object-cover">
+                            <div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span class="text-sm font-medium text-white">Open in YouTube Studio</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="md:col-span-2 space-y-4">
+                        <h2 id="video-title" class="text-2xl font-bold text-white leading-tight">Video Title</h2>
+                        <div class="flex flex-wrap gap-4 text-sm text-gray-400">
+                            <span class="flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> <span id="video-duration">Duration</span></span>
+                            <span class="flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg> <span id="channel-name">Channel</span></span>
+                        </div>
+                        <div class="flex gap-3">
+                            <span class="px-3 py-1 rounded-full bg-pink-500/20 text-pink-400 text-xs font-medium border border-pink-500/30">5 Clips Generated</span>
+                            <span class="px-3 py-1 rounded-full bg-purple-500/20 text-purple-400 text-xs font-medium border border-purple-500/30">9:16 Optimized</span>
+                            <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium border border-green-500/30">Ready to Edit</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 9:16 Safe Zone Guide -->
+            <div class="glass-panel rounded-3xl p-8 border border-gray-800">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold font-display">9:16 Safe Zone Template</h3>
+                        <p class="text-gray-400 text-sm mt-1">Based on Instagram Reels/YouTube Shorts specifications [^13^][^15^]</p>
+                    </div>
+                    <button onclick="downloadSafeZoneTemplate()" class="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-sm font-medium transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download PNG Overlay
+                    </button>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="safe-zone-viz" id="safe-zone-demo">
+                        <div class="zone-danger-top">DANGER: Profile/Search (14%)</div>
+                        <div class="zone-danger-right"></div>
+                        <div class="zone-danger-bottom">DANGER: Captions/CTA (35%)</div>
+                        <div class="zone-safe">
+                            <div class="aspect-marker">9:16 CROP AREA (56.25% width)</div>
+                            <div class="text-center mt-20">
+                                <div class="text-green-400 font-bold text-lg">SAFE ZONE</div>
+                                <div class="text-green-300 text-xs mt-1">840 × 1170 px</div>
+                                <div class="text-green-300 text-xs">Keep text & faces here</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="glass-panel rounded-xl p-4 border border-gray-700">
+                            <h4 class="font-bold text-pink-400 mb-2">Critical Zones to Avoid:</h4>
+                            <ul class="space-y-2 text-sm text-gray-300">
+                                <li class="flex items-start gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-red-500 mt-1.5"></span>
+                                    <span><strong>Top 14% (250px):</strong> Profile icon, search bar, audio info [^14^]</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-red-500 mt-1.5"></span>
+                                    <span><strong>Right 15%:</strong> Like, comment, share buttons [^16^]</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-red-500 mt-1.5"></span>
+                                    <span><strong>Bottom 35% (630px):</strong> Captions, CTA buttons, progress bar [^13^]</span>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <div class="glass-panel rounded-xl p-4 border border-gray-700">
+                            <h4 class="font-bold text-green-400 mb-2">Optimal 9:16 Crop Settings:</h4>
+                            <div class="space-y-2 text-sm text-gray-300">
+                                <div class="flex justify-between"><span>Resolution:</span> <span class="font-mono text-white">1080 × 1920 px</span></div>
+                                <div class="flex justify-between"><span>Aspect Ratio:</span> <span class="font-mono text-white">9:16 (56.25% of 16:9)</span></div>
+                                <div class="flex justify-between"><span>Center Crop:</span> <span class="font-mono text-white">x: 240px, y: 0px</span></div>
+                                <div class="flex justify-between"><span>Safe Area:</span> <span class="font-mono text-white">840 × 1170 px centered</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5 Clip Cards -->
+            <div>
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold font-display">5 Viral 1-Minute Clips</h3>
+                    <div class="flex gap-2">
+                        <button onclick="exportAllToPremiere()" class="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-medium transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                            Export XML (Premiere)
+                        </button>
+                        <button onclick="exportAllToDaVinci()" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm font-medium transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                            Export EDL (Resolve)
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="clips-container" class="grid lg:grid-cols-2 gap-6">
+                    <!-- Clips injected here -->
+                </div>
+            </div>
+
+        </section>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-8 right-8 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <div class="glass-panel px-6 py-4 rounded-xl border border-pink-500/30 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400">✓</div>
+            <span id="toast-message" class="font-medium">Action completed</span>
+        </div>
+    </div>
+
+    <script>
+        // Demo Data with 5 exact 1-minute clips
+        const demoVideos = {
+            tech: {
+                url: 'https://www.youtube.com/watch?v=tech2024',
+                title: "The AI Revolution: GPT-5 Leaked Features Explained",
+                channel: "TechVisionary",
+                duration: "24:15",
+                thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=640&h=360&fit=crop",
+                clips: [
+                    { 
+                        start: "02:15", end: "03:15", duration: "1:00", virality: 98, 
+                        hook: "The feature that scared OpenAI engineers...", 
+                        type: "Breaking News",
+                        crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 },
+                        rationale: "First mention of 'consciousness simulation' - high curiosity gap"
+                    },
+                    { 
+                        start: "08:45", end: "09:45", duration: "1:00", virality: 94, 
+                        hook: "I asked it to hack my own computer...", 
+                        type: "Demonstration",
+                        crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 },
+                        rationale: "Visual proof of capabilities - shareable moment"
+                    },
+                    { 
+                        start: "14:20", end: "15:20", duration: "1:00", virality: 91, 
+                        hook: "This changes coding forever (live demo)", 
+                        type: "Tutorial",
+                        crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 },
+                        rationale: "Practical value demonstration - high save rate potential"
+                    },
+                    { 
+                        start: "18:30", end: "19:30", duration: "1:00", virality: 89, 
+                        hook: "Why Google is terrified right now", 
+                        type: "Analysis",
+                        crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 },
+                        rationale: "Competitive drama - comment trigger"
+                    },
+                    { 
+                        start: "21:45", end: "22:45", duration: "1:00", virality: 87, 
+                        hook: "The exact prompt you need to try today", 
+                        type: "CTA",
+                        crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 },
+                        rationale: "Actionable takeaway - high completion rate"
+                    }
+                ]
+            },
+            podcast: {
+                url: 'https://www.youtube.com/watch?v=podcast2145',
+                title: "The Mindset Master: Discipline Equals Freedom",
+                channel: "PowerfulJRE",
+                duration: "3:24:00",
+                thumbnail: "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=640&h=360&fit=crop",
+                clips: [
+                    { start: "12:30", end: "13:30", duration: "1:00", virality: 96, hook: "The truth about discipline...", type: "Wisdom", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Actionable life advice - high shareability" },
+                    { start: "45:20", end: "46:20", duration: "1:00", virality: 93, hook: "When I lost everything...", type: "Story", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Emotional vulnerability - connection moment" },
+                    { start: "1:23:45", end: "1:24:45", duration: "1:00", virality: 91, hook: "Social media is destroying us", type: "Hot Take", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Relatable cultural critique - debate starter" },
+                    { start: "2:15:00", end: "2:16:00", duration: "1:00", virality: 88, hook: "How to find your purpose", type: "Advice", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Search-friendly topic - evergreen content" },
+                    { start: "2:45:30", end: "2:46:30", duration: "1:00", virality: 85, hook: "The morning routine that works", type: "Routine", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Practical implementation - high save rate" }
+                ]
+            },
+            gaming: {
+                url: 'https://www.youtube.com/watch?v=gaming2024',
+                title: "I Broke Minecraft, But Made It Better",
+                channel: "PixelMaster",
+                duration: "18:42",
+                thumbnail: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=640&h=360&fit=crop",
+                clips: [
+                    { start: "01:20", end: "02:20", duration: "1:00", virality: 99, hook: "Wait, what just happened?!", type: "Fail", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Unexpected gameplay moment - loop potential" },
+                    { start: "06:45", end: "07:45", duration: "1:00", virality: 95, hook: "The impossible trick shot", type: "Win", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Skill demonstration - aspirational content" },
+                    { start: "11:15", end: "12:15", duration: "1:00", virality: 92, hook: "I can't believe this worked", type: "Reaction", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Genuine surprise - authentic emotion" },
+                    { start: "15:30", end: "16:30", duration: "1:00", virality: 90, hook: "The hidden feature revealed", type: "Secret", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Exclusive discovery - FOMO trigger" },
+                    { start: "17:45", end: "18:42", duration: "0:57", virality: 88, hook: "Game over... or is it?", type: "Cliffhanger", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Suspense ending - part 2 potential" }
+                ]
+            },
+            cooking: {
+                url: 'https://www.youtube.com/watch?v=cooking2024',
+                title: "Master Chef Secrets: Perfect Pasta Every Time",
+                channel: "CulinaryArts",
+                duration: "12:30",
+                thumbnail: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=640&h=360&fit=crop",
+                clips: [
+                    { start: "00:45", end: "01:45", duration: "1:00", virality: 97, hook: "The perfect al dente test", type: "Satisfying", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "ASMR cooking sounds - sensory appeal" },
+                    { start: "04:20", end: "05:20", duration: "1:00", virality: 94, hook: "Stop doing this wrong!", type: "Hack", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Common mistake correction - helpful content" },
+                    { start: "07:15", end: "08:15", duration: "1:00", virality: 91, hook: "The sauce secret revealed", type: "Reveal", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Visual transformation - satisfying payoff" },
+                    { start: "10:30", end: "11:30", duration: "1:00", virality: 89, hook: "First bite reaction (honest)", type: "Taste", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Genuine emotional response - authenticity" },
+                    { start: "11:45", end: "12:30", duration: "0:45", virality: 86, hook: "Full recipe in comments!", type: "Recipe", crop: { x: 240, y: 0, width: 1080, height: 1920, safeX: 120, safeY: 270, safeW: 840, safeH: 1170 }, rationale: "Community engagement driver" }
+                ]
+            }
+        };
+
+        let currentVideo = null;
+
+        function setDemoUrl(type) {
+            document.getElementById('video-url').value = demoVideos[type].url;
+        }
+
+        function analyzeVideo() {
+            const url = document.getElementById('video-url').value;
+            if (!url) { showToast('Please enter a YouTube URL'); return; }
+
+            let type = 'tech';
+            if (url.includes('podcast')) type = 'podcast';
+            else if (url.includes('gaming')) type = 'gaming';
+            else if (url.includes('cooking')) type = 'cooking';
+            
+            currentVideo = demoVideos[type];
+
+            // Transition
+            document.getElementById('input-section').classList.remove('visible-scene');
+            document.getElementById('input-section').classList.add('hidden-scene');
+            
+            setTimeout(() => {
+                document.getElementById('input-section').style.display = 'none';
+                document.getElementById('loading-section').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('loading-section').classList.remove('hidden-scene');
+                    document.getElementById('loading-section').classList.add('visible-scene');
+                    simulateLoading();
+                }, 50);
+            }, 600);
+        }
+
+        function simulateLoading() {
+            setTimeout(() => {
+                document.getElementById('bar-2').style.width = '100%';
+                document.getElementById('step-2').innerHTML = '✓';
+                document.getElementById('step-2').classList.add('bg-pink-500/20', 'text-pink-400');
+                document.getElementById('loading-text').textContent = 'Optimizing 9:16 crop coordinates...';
+            }, 1500);
+
+            setTimeout(() => {
+                document.getElementById('bar-3').style.width = '100%';
+                document.getElementById('step-3').innerHTML = '✓';
+                document.getElementById('step-3').classList.add('bg-pink-500/20', 'text-pink-400');
+                document.getElementById('loading-text').textContent = 'Finalizing viral ratings...';
+            }, 3000);
+
+            setTimeout(() => {
+                document.getElementById('loading-section').classList.remove('visible-scene');
+                document.getElementById('loading-section').classList.add('hidden-scene');
+                setTimeout(() => {
+                    document.getElementById('loading-section').style.display = 'none';
+                    document.getElementById('results-section').style.display = 'block';
+                    setTimeout(() => {
+                        document.getElementById('results-section').classList.remove('hidden-scene');
+                        document.getElementById('results-section').classList.add('visible-scene');
+                        populateResults();
+                    }, 50);
+                }, 600);
+            }, 4500);
+        }
+
+        function populateResults() {
+            document.getElementById('video-title').textContent = currentVideo.title;
+            document.getElementById('channel-name').textContent = currentVideo.channel;
+            document.getElementById('video-duration').textContent = currentVideo.duration;
+            document.getElementById('thumbnail-img').src = currentVideo.thumbnail;
+
+            const container = document.getElementById('clips-container');
+            container.innerHTML = '';
+
+            currentVideo.clips.forEach((clip, idx) => {
+                const card = document.createElement('div');
+                card.className = 'clip-card glass-panel rounded-2xl p-6 border border-gray-800 relative overflow-hidden';
+                
+                const scoreColor = clip.virality >= 95 ? 'text-green-400' : clip.virality >= 90 ? 'text-yellow-400' : 'text-orange-400';
+                const scoreBg = clip.virality >= 95 ? 'from-green-500 to-emerald-500' : clip.virality >= 90 ? 'from-yellow-500 to-orange-500' : 'from-orange-500 to-red-500';
+                
+                card.innerHTML = `
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${scoreBg}"></div>
+                    
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-14 h-14 rounded-xl bg-gradient-to-br ${scoreBg} flex items-center justify-center text-white font-bold text-xl">
+                                ${idx + 1}
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Clip ${idx + 1} • ${clip.type}</div>
+                                <div class="text-2xl font-bold text-white font-mono">${clip.start} - ${clip.end}</div>
+                                <div class="text-sm text-gray-400">Duration: ${clip.duration}</div>
+                            </div>
+                        </div>
+                        <div class="relative w-20 h-20">
+                            <div class="absolute inset-0 rounded-full viral-score-ring" style="--score: ${clip.virality * 3.6}deg"></div>
+                            <div class="absolute inset-2 rounded-full bg-gray-900 flex items-center justify-center flex-col">
+                                <span class="text-2xl font-bold ${scoreColor}">${clip.virality}</span>
+                                <span class="text-[10px] text-gray-500 uppercase">Score</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 mb-4">
+                        <div class="glass-panel rounded-lg p-4 border border-gray-700">
+                            <div class="text-xs text-gray-500 uppercase mb-1">Viral Hook</div>
+                            <div class="text-lg font-semibold text-white">"${clip.hook}"</div>
+                        </div>
+                        
+                        <div class="text-sm text-gray-400 flex items-start gap-2">
+                            <svg class="w-5 h-5 text-pink-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            <span>${clip.rationale}</span>
+                        </div>
+                    </div>
+
+                    <!-- 9:16 Crop Specs -->
+                    <div class="glass-panel rounded-xl p-4 border border-gray-700 mb-4 bg-gradient-to-br from-gray-900/50 to-purple-900/20">
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-sm font-bold text-purple-400">9:16 Crop Specifications</span>
+                            <span class="text-xs text-gray-500">1080×1920</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 text-xs">
+                            <div class="flex justify-between"><span class="text-gray-400">Crop X:</span> <span class="font-mono text-white">${clip.crop.x}px</span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Crop Y:</span> <span class="font-mono text-white">${clip.crop.y}px</span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Width:</span> <span class="font-mono text-white">${clip.crop.width}px</span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Height:</span> <span class="font-mono text-white">${clip.crop.height}px</span></div>
+                            <div class="col-span-2 pt-2 border-t border-gray-700 flex justify-between">
+                                <span class="text-green-400">Safe Zone:</span>
+                                <span class="font-mono text-green-400">${clip.crop.safeW}×${clip.crop.safeH}px</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mini Preview Visualization -->
+                    <div class="relative w-full h-32 bg-gray-900 rounded-lg overflow-hidden mb-4 border border-gray-700">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-30">
+                            <img src="${currentVideo.thumbnail}" class="w-full h-full object-cover" alt="Preview">
+                        </div>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <div style="width: 56.25%; height: 100%; border: 2px solid #00ff88; background: rgba(0,255,136,0.1); display: flex; align-items: center; justify-content: center;">
+                                <span class="text-xs text-green-400 font-bold bg-black/50 px-2 py-1 rounded">9:16 AREA</span>
+                            </div>
+                        </div>
+                        <div class="absolute top-0 left-0 right-0 h-[14%] bg-red-500/20 border-b border-red-500/50 flex items-center justify-center">
+                            <span class="text-[10px] text-red-400">AVOID</span>
+                        </div>
+                        <div class="absolute bottom-0 left-0 right-0 h-[35%] bg-red-500/20 border-t border-red-500/50 flex items-center justify-center">
+                            <span class="text-[10px] text-red-400">AVOID</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="copyTimestamp('${clip.start}', '${clip.end}')" class="flex-1 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                            Copy Timecode
+                        </button>
+                        <button onclick="exportSingleClip(${idx})" class="flex-1 py-3 rounded-lg bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-sm font-medium transition-all flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Export Settings
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function copyTimestamp(start, end) {
+            navigator.clipboard.writeText(`${start} - ${end}`);
+            showToast(`Copied: ${start} - ${end}`);
+        }
+
+        function exportSingleClip(idx) {
+            const clip = currentVideo.clips[idx];
+            const data = {
+                clip: idx + 1,
+                start: clip.start,
+                end: clip.end,
+                duration: clip.duration,
+                virality: clip.virality,
+                hook: clip.hook,
+                crop: clip.crop,
+                videoTitle: currentVideo.title,
+                videoUrl: currentVideo.url
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `clip-${idx + 1}-settings.json`;
+            a.click();
+            showToast(`Exported Clip ${idx + 1} settings`);
+        }
+
+        function exportAllToPremiere() {
+            // Generate XML for Adobe Premiere Pro
+            let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<PremiereData Version="3">\n<Project Name="ShortForm_Export">\n<Sequences>\n`;
+            
+            currentVideo.clips.forEach((clip, idx) => {
+                xml += `<Sequence Name="Clip_${idx + 1}_V${clip.virality}" ID="${idx + 1}">
+                    <VideoTrack>
+                        <Clip In="${timeToSeconds(clip.start)}s" Out="${timeToSeconds(clip.end)}s" Source="${currentVideo.url}">
+                            <Crop X="${clip.crop.x}" Y="${clip.crop.y}" Width="${clip.crop.width}" Height="${clip.crop.height}"/>
+                        </Clip>
+                    </VideoTrack>
+                </Sequence>\n`;
+            });
+            
+            xml += `</Sequences>\n</Project>\n</PremiereData>`;
+            
+            downloadFile(xml, 'premiere-project.xml', 'application/xml');
+            showToast('Premiere Pro XML exported!');
+        }
+
+        function exportAllToDaVinci() {
+            // Generate EDL for DaVinci Resolve
+            let edl = `TITLE: ShortForm_Export\nFCM: NON-DROP FRAME\n\n`;
+            
+            currentVideo.clips.forEach((clip, idx) => {
+                const startSec = timeToSeconds(clip.start);
+                const endSec = timeToSeconds(clip.end);
+                edl += `${idx + 1}  V     A     C        ${secondsToTimecode(startSec)} ${secondsToTimecode(endSec)} ${secondsToTimecode(startSec)} ${secondsToTimecode(endSec)}\n`;
+                edl += `* 9:16 CROP: x=${clip.crop.x}, y=${clip.crop.y}, w=${clip.crop.width}, h=${clip.crop.height}\n`;
+                edl += `* VIRALITY: ${clip.virality}/100 | HOOK: ${clip.hook}\n\n`;
+            });
+            
+            downloadFile(edl, 'resolve-edit.edl', 'text/plain');
+            showToast('DaVinci Resolve EDL exported!');
+        }
+
+        function downloadSafeZoneTemplate() {
+            // Create a canvas-based safe zone overlay PNG
+            const canvas = document.createElement('canvas');
+            canvas.width = 1080;
+            canvas.height = 1920;
+            const ctx = canvas.getContext('2d');
+            
+            // Transparent background
+            ctx.fillStyle = 'rgba(0,0,0,0)';
+            ctx.fillRect(0, 0, 1080, 1920);
+            
+            // Danger zones (red hashed)
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
+            ctx.fillRect(0, 0, 1080, 270); // Top 14%
+            ctx.fillRect(0, 1245, 1080, 675); // Bottom 35%
+            ctx.fillRect(960, 270, 120, 975); // Right 15%
+            
+            // Safe zone border (green)
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(120, 270, 840, 1170);
+            
+            // 9:16 crop area (blue)
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(240, 0, 1080, 1920);
+            
+            // Labels
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 40px Arial';
+            ctx.fillText('DANGER: UI OVERLAY', 350, 150);
+            ctx.fillText('DANGER: CAPTIONS/CTA', 300, 1400);
+            
+            ctx.fillStyle = '#22c55e';
+            ctx.fillText('SAFE ZONE', 400, 900);
+            
+            const link = document.createElement('a');
+            link.download = '9-16-safe-zone-overlay.png';
+            link.href = canvas.toDataURL();
+            link.click();
+            showToast('Safe zone template downloaded!');
+        }
+
+        function timeToSeconds(time) {
+            const parts = time.split(':').map(Number);
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            return parts[0] * 60 + parts[1];
+        }
+
+        function secondsToTimecode(sec) {
+            const hrs = Math.floor(sec / 3600);
+            const mins = Math.floor((sec % 3600) / 60);
+            const secs = Math.floor(sec % 60);
+            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:00`;
+        }
+
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+    </script>
+</body>
+</html>
+
